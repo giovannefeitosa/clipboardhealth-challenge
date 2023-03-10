@@ -32,7 +32,7 @@ exports.deterministicPartitionKey = (event) => {
       candidate = JSON.stringify(candidate);
     }
   } else {
-    // TODO: should this ever happen?
+    // THIS SHOULD NEVER HAPPEN
     candidate = TRIVIAL_PARTITION_KEY;
   }
   // if candidate is too long
