@@ -1,5 +1,15 @@
 const crypto = require("crypto");
 
+const TRIVIAL_PARTITION_KEY = "0";
+const MAX_PARTITION_KEY_LENGTH = 256;
+
+/**
+ * Private function so we don't need to repeat this code inside `deterministicPartitionKey` function.
+ */
+function generateCandidate(data) {
+  return crypto.createHash("sha3-512").update(data).digest("hex");
+}
+
 /**
  * Receives an event and returns a deterministic partition key.
  *
@@ -7,38 +17,18 @@ const crypto = require("crypto");
  * @returns
  */
 exports.deterministicPartitionKey = (event) => {
-  const TRIVIAL_PARTITION_KEY = "0";
-  const MAX_PARTITION_KEY_LENGTH = 256;
-  let candidate;
+  // if we don't have enough to proceed
+  if (!event) return TRIVIAL_PARTITION_KEY;
+  if (!event?.partitionKey) return generateCandidate(JSON.stringify(event));
 
-  // if event exists
-  if (event) {
-    if (event.partitionKey) {
-      // if event has a partition key, we use it
-      candidate = event.partitionKey;
-    } else {
-      // if event has no partition key, we convert the event to a hash string
-      // and use it as a partition key
-      const data = JSON.stringify(event);
-      // https://nodejs.org/api/crypto.html#hashdigestencoding
-      candidate = crypto.createHash("sha3-512").update(data).digest("hex");
-    }
-  }
+  // get partition as String
+  const eventString =
+    typeof event.partitionKey === "string"
+      ? event.partitionKey
+      : JSON.stringify(event.partitionKey);
 
-  if (candidate) {
-    // if candidate is not a string, it should be
-    if (typeof candidate !== "string") {
-      // JSON.stringify(1) === "1"
-      candidate = JSON.stringify(candidate);
-    }
-  } else {
-    // THIS SHOULD NEVER HAPPEN
-    candidate = TRIVIAL_PARTITION_KEY;
-  }
-  // if candidate is too long
-  // we apply a hash so it fits in the partition key
-  if (candidate.length > MAX_PARTITION_KEY_LENGTH) {
-    candidate = crypto.createHash("sha3-512").update(candidate).digest("hex");
-  }
-  return candidate;
+  // if it's too long, we need to hash it
+  return eventString.length <= MAX_PARTITION_KEY_LENGTH
+    ? eventString
+    : generateCandidate(JSON.stringify(event));
 };
